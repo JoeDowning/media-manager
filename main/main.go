@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/JoeDowning/media-manager/domain/files"
-	"github.com/JoeDowning/media-manager/domain/sorting"
-	"github.com/JoeDowning/media-manager/pkg/config"
-	"github.com/JoeDowning/media-manager/pkg/genutils"
-	"github.com/JoeDowning/media-manager/pkg/logging"
+	"github.com/downing/media-manager/domain/files"
+	"github.com/downing/media-manager/domain/sorting"
+	"github.com/downing/media-manager/pkg/config"
+	"github.com/downing/media-manager/pkg/genutils"
+	"github.com/downing/media-manager/pkg/logging"
 	"go.uber.org/zap"
 )
 

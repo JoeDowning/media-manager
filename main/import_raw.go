@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/JoeDowning/media-manager/pkg/config"
 	"github.com/downing/media-manager/domain/sorting"
+	"github.com/downing/media-manager/pkg/config"
 	"go.uber.org/zap"
 )
 
