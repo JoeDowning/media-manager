@@ -4,41 +4,73 @@ import (
 	"fmt"
 
 	"github.com/caarlos0/env/v11"
+	"go.uber.org/zap"
 )
 
-type Config struct {
-	logLevel string `env:"log_level"`
-
-	destinationPath string `env:"destination_path, required"`
-	sourcePath      string `env:"source_path, required"`
-
-	copyFiles bool `env:"copy_files"`
-	moveFiles bool `env:"move_files"`
-
-	importRaw    bool `env:"import_raw"`
-	backupRaw    bool `env:"backup_raw"`
-	backupEdited bool `env:"backup_edited"`
-}
-
 func GetConfig() (Config, error) {
-	var cfg Config
-	err := env.Parse(&cfg)
+	var envCfg EnvConfig
+	err := env.Parse(&envCfg)
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to get env config: %w", err)
 	}
+
+	cfg := Config{
+		logLevel: envCfg.logLevel,
+
+		importRaw:    envCfg.importRaw,
+		backupRaw:    envCfg.backupRaw,
+		backupEdited: envCfg.backupEdited,
+		uploadEdited: envCfg.uploadEdited,
+	}
+
+	switch envCfg.fileOperation {
+	case "copy":
+		cfg.copyFiles = true
+	case "move":
+		cfg.moveFiles = true
+	default:
+		return Config{}, fmt.Errorf("invalid file operation: %s, choose from [copy, move]", envCfg.fileOperation)
+	}
+
+	pathCfg, err := parsePathConfig(envCfg.pathConfig)
+	if err != nil {
+		return Config{}, fmt.Errorf("failed to parse path config: %w", err)
+	}
+
+	cfg.rawPath = pathCfg.rawPath
+	cfg.localPath = pathCfg.localPath
+	cfg.backupPath = pathCfg.backupPath
+
 	return cfg, nil
+}
+
+func parsePathConfig(pathCfg string) (pathConfig, error) {
+	switch pathCfg {
+	case "test":
+		return pathConfig{
+			rawPath:    "./media/raw",
+			localPath:  "./media/local",
+			backupPath: "./media/backup",
+		}, nil
+	default:
+		return pathConfig{}, fmt.Errorf("unknown path config: %s, choose from [default]", pathCfg)
+	}
 }
 
 func (c Config) LogLevel() string {
 	return c.logLevel
 }
 
-func (c Config) DestinationPath() string {
-	return c.destinationPath
+func (c Config) RawPath() string {
+	return c.rawPath
 }
 
-func (c Config) SourcePath() string {
-	return c.sourcePath
+func (c Config) LocalPath() string {
+	return c.localPath
+}
+
+func (c Config) BackupPath() string {
+	return c.backupPath
 }
 
 func (c Config) CopyFiles() bool {
@@ -59,4 +91,23 @@ func (c Config) BackupRaw() bool {
 
 func (c Config) BackupEdited() bool {
 	return c.backupEdited
+}
+
+func (c Config) UploadEdited() bool {
+	return c.uploadEdited
+}
+
+func (c Config) LogConfig(logger *zap.Logger) {
+	logger.Info("Config on startup",
+		zap.String("log_level", c.LogLevel()),
+		zap.String("raw_path", c.RawPath()),
+		zap.String("local_path", c.LocalPath()),
+		zap.String("backup_path", c.BackupPath()),
+		zap.Bool("copy_files", c.CopyFiles()),
+		zap.Bool("move_files", c.MoveFiles()),
+		zap.Bool("import_raw", c.ImportRaw()),
+		zap.Bool("backup_raw", c.BackupRaw()),
+		zap.Bool("backup_edited", c.BackupEdited()),
+		zap.Bool("upload_edited", c.UploadEdited()),
+	)
 }
