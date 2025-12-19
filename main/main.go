@@ -15,7 +15,7 @@ func main() {
 		panic(err)
 	}
 
-	logger := logging.NewLogger(cfg.LogLevel)
+	logger := logging.NewLogger(cfg.LogLevel())
 	defer logger.Sync()
 
 	cfg.LogConfig(logger)

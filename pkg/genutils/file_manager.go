@@ -81,6 +81,11 @@ func (fm *FileManager) CopyFile(sourcePath, destinationPath string) error {
 	}
 	defer sourceFile.Close()
 
+	destDir := filepath.Dir(destinationPath)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	}
+
 	destFile, err := os.Create(destinationPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destinationPath, err)

@@ -1,16 +1,16 @@
 package config
 
 type EnvConfig struct {
-	logLevel string `env:"log_level"`
+	LogLevel string `env:"log_level"`
 
-	pathConfig string `env:"path_config, required"`
+	PathConfig string `env:"path_config"`
 
-	fileOperation string `env:"file_op, required"`
+	FileOperation string `env:"file_op"`
 
-	importRaw    bool `env:"import_raw"`
-	backupRaw    bool `env:"backup_raw"`
-	backupEdited bool `env:"backup_edited"`
-	uploadEdited bool `env:"upload_edited"`
+	ImportRaw    bool `env:"import_raw"`
+	BackupRaw    bool `env:"backup_raw"`
+	BackupEdited bool `env:"backup_edited"`
+	UploadEdited bool `env:"upload_edited"`
 }
 
 type Config struct {

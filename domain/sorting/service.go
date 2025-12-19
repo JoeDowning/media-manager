@@ -2,6 +2,7 @@ package sorting
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/downing/media-manager/domain/images"
@@ -50,12 +51,12 @@ func NewService(
 }
 
 // ImportRawFiles imports raw files from the raw path to the local path based on the last import date.
-func (s *Service) ImportRawFiles(lastImportDate time.Time) error {
+func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.rawPath)
 	if err != nil {
-		return fmt.Errorf("failed to get files recursively in path %s: %w", s.criteria.rawPath, err)
+		return time.Time{}, fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.rawPath, err)
 	}
-	s.logger.Info(":.... Found files for import", zap.Int("file_count", len(files)))
+	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
 
 	imageTypes := images.GetImageTypes()
 
@@ -63,33 +64,38 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) error {
 
 	for _, file := range files {
 		if !fileTypeIsInList(file, imageTypes) {
+			s.logger.Debug("Skipping non-image file", zap.String("file", file))
 			continue
 		}
 		imageFiles = append(imageFiles, file)
 	}
-	s.logger.Info("::... Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
+	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
 
 	var importCount int
+	var newestTime time.Time
 	for _, file := range imageFiles {
 		imgData, err := images.GetPhoto(nil, file)
 		if err != nil {
-			return fmt.Errorf("failed to get photo data for file %s: %w", file, err)
+			return time.Time{}, fmt.Errorf("failed to get photo data for file [%s]: %w", file, err)
 		}
 
 		imgTime := imgData.GetTimestamp()
 		if imgTime.After(lastImportDate) {
-			destPath := s.criteria.localPath + "/" + imgData.GetFileName()
+			destPath := generateRawImportDestinationPath(s.criteria.localPath, imgData.GetFileName(), imgTime)
 			err = s.files.CopyFile(file, destPath)
 			if err != nil {
-				return fmt.Errorf("failed to copy file %s to %s: %w", file, destPath, err)
+				return time.Time{}, fmt.Errorf("failed to copy file [%s] to [%s]: %w", file, destPath, err)
 			}
 			importCount++
 			s.logger.Debug("Imported raw file", zap.String("source", file), zap.String("destination", destPath))
 		}
+		if imgTime.After(newestTime) {
+			newestTime = imgTime
+		}
 	}
 
-	s.logger.Info(":::.. Import raw files completed", zap.Int("imported_files_count", importCount))
-	return nil
+	s.logger.Info("Import raw files completed", zap.Int("imported_files_count", importCount))
+	return newestTime, nil
 }
 
 func (s *Service) BackupLocalRawFiles() error {
@@ -104,9 +110,13 @@ func (s *Service) BackupEditedFiles() error {
 
 func fileTypeIsInList(filePath string, fileTypes []string) bool {
 	for _, fileType := range fileTypes {
-		if len(filePath) >= len(fileType)+1 && filePath[len(filePath)-len(fileType)-1:] == "."+fileType {
+		if len(filePath) >= len(fileType)+1 && strings.EqualFold(filePath[len(filePath)-len(fileType)-1:], "."+fileType) {
 			return true
 		}
 	}
 	return false
+}
+
+func generateRawImportDestinationPath(basePath, fileName string, timestamp time.Time) string {
+	return fmt.Sprintf("%s/%d-%02d-%02d/%s", basePath, timestamp.Year(), timestamp.Month(), timestamp.Day(), fileName)
 }

@@ -9,17 +9,25 @@ import (
 )
 
 func importRawFiles(logger *zap.Logger, sortingService *sorting.Service) error {
-	logger.Info("..... Starting import of raw files")
+	logger.Info("Starting import of raw files")
 
 	lastImportDate, err := config.GetLastImportDate()
 	if err != nil {
 		return fmt.Errorf("failed to get last import date: %w", err)
 	}
-	logger.Info("::::. Last import date retrieved", zap.Time("last_import_date", lastImportDate))
+	logger.Info("Last import date retrieved", zap.Time("last_import_date", lastImportDate))
 
-	err = sortingService.ImportRawFiles(lastImportDate)
+	lastImportTime, err := sortingService.ImportRawFiles(lastImportDate)
 	if err != nil {
 		return fmt.Errorf("failed to import raw files: %w", err)
 	}
-	logger.Info("::::: Import of raw files completed")
+
+	err = config.SetLastImportDate(lastImportTime)
+	if err != nil {
+		return fmt.Errorf("failed to set last import date: %w", err)
+	}
+	logger.Info("Last import date updated", zap.Time("new_last_import_date", lastImportTime))
+
+	logger.Info("Import of raw files completed")
+	return nil
 }

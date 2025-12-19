@@ -15,24 +15,24 @@ func GetConfig() (Config, error) {
 	}
 
 	cfg := Config{
-		logLevel: envCfg.logLevel,
+		logLevel: envCfg.LogLevel,
 
-		importRaw:    envCfg.importRaw,
-		backupRaw:    envCfg.backupRaw,
-		backupEdited: envCfg.backupEdited,
-		uploadEdited: envCfg.uploadEdited,
+		importRaw:    envCfg.ImportRaw,
+		backupRaw:    envCfg.BackupRaw,
+		backupEdited: envCfg.BackupEdited,
+		uploadEdited: envCfg.UploadEdited,
 	}
 
-	switch envCfg.fileOperation {
+	switch envCfg.FileOperation {
 	case "copy":
 		cfg.copyFiles = true
 	case "move":
 		cfg.moveFiles = true
 	default:
-		return Config{}, fmt.Errorf("invalid file operation: %s, choose from [copy, move]", envCfg.fileOperation)
+		return Config{}, fmt.Errorf("invalid file operation: %s, choose from [copy, move]", envCfg.FileOperation)
 	}
 
-	pathCfg, err := parsePathConfig(envCfg.pathConfig)
+	pathCfg, err := parsePathConfig(envCfg.PathConfig)
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to parse path config: %w", err)
 	}
@@ -48,8 +48,8 @@ func parsePathConfig(pathCfg string) (pathConfig, error) {
 	switch pathCfg {
 	case "test":
 		return pathConfig{
-			rawPath:    "./media/raw",
-			localPath:  "./media/local",
+			rawPath:    "/Users/downing/Pictures/testing/raw",
+			localPath:  "/Users/downing/Pictures/testing/rawsorted",
 			backupPath: "./media/backup",
 		}, nil
 	default:
