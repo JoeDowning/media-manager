@@ -52,6 +52,12 @@ func parsePathConfig(pathCfg string) (pathConfig, error) {
 			localPath:  "/Users/downing/Pictures/testing/rawsorted",
 			backupPath: "./media/backup",
 		}, nil
+	case "default":
+		return pathConfig{
+			rawPath:    "/Volumes/EOS_DIGITAL/DCIM",
+			localPath:  "/Users/downing/Pictures/raw",
+			backupPath: "/",
+		}, nil
 	default:
 		return pathConfig{}, fmt.Errorf("unknown path config: %s, choose from [default]", pathCfg)
 	}

@@ -11,7 +11,7 @@ import (
 func importRawFiles(logger *zap.Logger, sortingService *sorting.Service) error {
 	logger.Info("Starting import of raw files")
 
-	lastImportDate, err := config.GetLastImportDate()
+	lastImportDate, err := config.GetLastImportDate(logger)
 	if err != nil {
 		return fmt.Errorf("failed to get last import date: %w", err)
 	}

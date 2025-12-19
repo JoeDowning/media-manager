@@ -71,30 +71,43 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 	}
 	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
 
-	var importCount int
+	var importCount, filesChecked int
 	var newestTime time.Time
 	for _, file := range imageFiles {
+		filesChecked++
+		logMsg := fmt.Sprintf("%d files remaining", len(imageFiles)-filesChecked)
+
+		// get photo data
 		imgData, err := images.GetPhoto(nil, file)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("failed to get photo data for file [%s]: %w", file, err)
 		}
 
+		// get timestamp and if before last import date, skip
 		imgTime := imgData.GetTimestamp()
-		if imgTime.After(lastImportDate) {
-			destPath := generateRawImportDestinationPath(s.criteria.localPath, imgData.GetFileName(), imgTime)
-			err = s.files.CopyFile(file, destPath)
-			if err != nil {
-				return time.Time{}, fmt.Errorf("failed to copy file [%s] to [%s]: %w", file, destPath, err)
-			}
-			importCount++
-			s.logger.Debug("Imported raw file", zap.String("source", file), zap.String("destination", destPath))
+		if imgTime.Before(lastImportDate) || imgTime.Equal(lastImportDate) {
+			s.logger.Debug(logMsg, zap.String("file", file), zap.Bool("imported", false))
+			continue
 		}
+
+		// create the new path of format <localPath>/<year>-<month>-<day>/<filename>
+		destPath := generateRawImportDestinationPath(s.criteria.localPath, imgData.GetFileName(), imgTime)
+
+		// copy the file to the new location
+		err = s.files.CopyFile(file, destPath)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("failed to copy file [%s] to [%s]: %w", file, destPath, err)
+		}
+
+		// update newest time
 		if imgTime.After(newestTime) {
 			newestTime = imgTime
 		}
+		s.logger.Debug(logMsg, zap.String("file", file), zap.Bool("imported", true))
+		importCount++
 	}
 
-	s.logger.Info("Import raw files completed", zap.Int("imported_files_count", importCount))
+	s.logger.Info("Import raw files completed", zap.Int("imported_files_count", importCount), zap.Int("file_count", len(files)))
 	return newestTime, nil
 }
 

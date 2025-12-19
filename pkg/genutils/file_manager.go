@@ -81,6 +81,11 @@ func (fm *FileManager) CopyFile(sourcePath, destinationPath string) error {
 	}
 	defer sourceFile.Close()
 
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat source file %s: %w", sourcePath, err)
+	}
+
 	destDir := filepath.Dir(destinationPath)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
@@ -95,6 +100,10 @@ func (fm *FileManager) CopyFile(sourcePath, destinationPath string) error {
 	_, err = destFile.ReadFrom(sourceFile)
 	if err != nil {
 		return fmt.Errorf("failed to copy data from source file %s to destination file %s: %w", sourcePath, destinationPath, err)
+	}
+
+	if err := os.Chtimes(destinationPath, sourceInfo.ModTime(), sourceInfo.ModTime()); err != nil {
+		return fmt.Errorf("failed to set timestamps on destination file %s: %w", destinationPath, err)
 	}
 
 	return nil
