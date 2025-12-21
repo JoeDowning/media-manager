@@ -30,6 +30,8 @@ func main() {
 		cfg.RawPath(),
 		cfg.LocalPath(),
 		cfg.BackupPath(),
+		cfg.MoveFiles(),
+		cfg.CopyFiles(),
 	)
 
 	if cfg.ImportRaw() {

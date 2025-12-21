@@ -6,7 +6,13 @@ import (
 )
 
 func backupRawFiles(logger *zap.Logger, sortingService *sorting.Service) error {
-	logger.Info(". Starting backup of raw files")
-	logger.Info(": Backup of raw files completed")
+	logger.Info("Starting backup of raw files")
+
+	err := sortingService.BackupLocalRawFiles()
+	if err != nil {
+		return err
+	}
+
+	logger.Info("Backup of raw files completed")
 	return nil
 }
