@@ -6,25 +6,27 @@ import (
 	"time"
 
 	"github.com/downing/media-manager/domain/images"
+	runtimestats "github.com/downing/media-manager/pkg/runtime_stats"
 	"go.uber.org/zap"
 )
 
 type SortCriteria struct {
-	fileTypes []string
+	FileTypes []string
 
-	rawPath         string
-	localRawPath    string
-	localEditedPath string
-	backupPath      string
+	RawPath         string
+	LocalRawPath    string
+	LocalEditedPath string
+	BackupPath      string
 
-	moveFiles bool
-	copyFiles bool
+	MoveFiles bool
+	CopyFiles bool
 }
 
 type Service struct {
 	logger   *zap.Logger
 	criteria SortCriteria
 	files    fileManager
+	stats    *runtimestats.Stats
 }
 
 type fileManager interface {
@@ -36,35 +38,32 @@ type fileManager interface {
 	CopyFile(sourcePath, destinationPath string) error
 }
 
+type statsManager interface {
+	IncrementCounter(name string)
+}
+
 func NewService(
 	logging *zap.Logger,
-	fileTypes []string,
 	files fileManager,
-	rawPath, localRawPath, localEditedPath, backupPath string,
-	moveFiles, copyFiles bool,
+	sortingCriteria SortCriteria,
+	stats *runtimestats.Stats,
 ) *Service {
 	return &Service{
-		logger: logging,
-		files:  files,
-		criteria: SortCriteria{
-			fileTypes:       fileTypes,
-			rawPath:         rawPath,
-			localRawPath:    localRawPath,
-			localEditedPath: localEditedPath,
-			backupPath:      backupPath,
-			moveFiles:       moveFiles,
-			copyFiles:       copyFiles,
-		},
+		logger:   logging,
+		files:    files,
+		criteria: sortingCriteria,
+		stats:    stats,
 	}
 }
 
 // ImportRawFiles imports raw files from the raw path to the local path based on the last import date.
 func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
-	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.rawPath)
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.RawPath)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.rawPath, err)
+		return time.Time{}, fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.RawPath, err)
 	}
 	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
+	s.stats.RawFilesChecked += len(files)
 
 	imageTypes := images.GetImageTypes()
 
@@ -78,8 +77,9 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 		imageFiles = append(imageFiles, file)
 	}
 	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
+	s.stats.RawFilesFound += len(imageFiles)
 
-	var importCount, filesChecked int
+	var filesChecked int
 	var newestTime time.Time
 	for _, file := range imageFiles {
 		filesChecked++
@@ -98,8 +98,8 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 			continue
 		}
 
-		// create the new path of format <localPath>/<year>-<month>-<day>/<filename>
-		destPath := generateRawImportDestinationPath(s.criteria.localRawPath, imgData.GetFileName(), imgTime)
+		// create the new path of format <localRawPath>/<year>-<month>-<day>/<filename>
+		destPath := generateRawImportDestinationPath(s.criteria.LocalRawPath, imgData.GetFileName(), imgTime)
 
 		// copy the file to the new location
 		err = s.files.CopyFile(file, destPath)
@@ -112,19 +112,20 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 			newestTime = imgTime
 		}
 		s.logger.Debug(logMsg, zap.String("file", file), zap.Bool("imported", true))
-		importCount++
+		s.stats.RawFilesImported++
 	}
 
-	s.logger.Info("Import raw files completed", zap.Int("imported_files_count", importCount), zap.Int("file_count", len(files)))
+	s.logger.Info("Import raw files completed", zap.Int("imported_files_count", s.stats.RawFilesImported), zap.Int("file_count", len(files)))
 	return newestTime, nil
 }
 
 func (s *Service) BackupLocalRawFiles() error {
-	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.localRawPath)
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.LocalRawPath)
 	if err != nil {
-		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.localRawPath, err)
+		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.LocalRawPath, err)
 	}
 	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
+	s.stats.LocalRawFilesChecked += len(files)
 
 	imageTypes := images.GetImageTypes()
 
@@ -138,8 +139,9 @@ func (s *Service) BackupLocalRawFiles() error {
 		imageFiles = append(imageFiles, file)
 	}
 	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
+	s.stats.LocalRawFilesFound += len(imageFiles)
 
-	var backupCount, filesChecked int
+	var filesChecked int
 	for _, file := range imageFiles {
 		filesChecked++
 		logMsg := fmt.Sprintf("%d files remaining", len(imageFiles)-filesChecked)
@@ -152,7 +154,7 @@ func (s *Service) BackupLocalRawFiles() error {
 
 		// create the new path of format <backupPath>/<year>/<month>/<day><hour><minute><second>_<filename>
 		imgTime := imgData.GetTimestamp()
-		destPath := generateRawBackupDestinationPath(s.criteria.backupPath, imgData.GetFileName(), imgTime)
+		destPath := generateRawBackupDestinationPath(s.criteria.BackupPath, imgData.GetFileName(), imgTime)
 
 		// check if the file with the new name already exists at the destination
 		exists, err := s.files.DoesFileExist(destPath)
@@ -164,37 +166,39 @@ func (s *Service) BackupLocalRawFiles() error {
 			continue
 		}
 
-		if s.criteria.copyFiles {
+		if s.criteria.CopyFiles {
 			// copy the file to the new location
 			err = s.files.CopyFile(file, destPath)
 			if err != nil {
 				return fmt.Errorf("failed to copy file [%s] to [%s]: %w", file, destPath, err)
 			}
-		} else if s.criteria.moveFiles {
+			s.stats.LocalRawFilesCopied++
+		} else if s.criteria.MoveFiles {
 			// move the file to the new location
 			err = s.files.MoveFile(file, destPath)
 			if err != nil {
 				return fmt.Errorf("failed to move file [%s] to [%s]: %w", file, destPath, err)
 			}
+			s.stats.LocalRawFilesMoved++
 		} else {
 			s.logger.Warn("No file operation specified (neither move nor copy)", zap.String("file", file))
 			continue
 		}
 
 		s.logger.Debug(logMsg, zap.String("file", file), zap.Bool("backed_up", true))
-		backupCount++
 	}
 
-	s.logger.Info("Backup of local raw files completed", zap.Int("file_count", backupCount))
+	s.logger.Info("Backup of local raw files completed", zap.Int("file_count", s.stats.LocalRawFilesCopied+s.stats.LocalRawFilesMoved))
 	return nil
 }
 
 func (s *Service) BackupEditedFiles() error {
-	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.localEditedPath)
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.LocalEditedPath)
 	if err != nil {
-		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.localEditedPath, err)
+		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.LocalEditedPath, err)
 	}
 	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
+	s.stats.LocalEditedFilesChecked += len(files)
 
 	imageTypes := images.GetImageTypes()
 
@@ -208,8 +212,9 @@ func (s *Service) BackupEditedFiles() error {
 		imageFiles = append(imageFiles, file)
 	}
 	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
+	s.stats.LocalEditedFilesFound += len(imageFiles)
 
-	var backupCount, filesChecked int
+	var filesChecked int
 	for _, file := range imageFiles {
 		filesChecked++
 		logMsg := fmt.Sprintf("%d files remaining", len(imageFiles)-filesChecked)
@@ -222,7 +227,7 @@ func (s *Service) BackupEditedFiles() error {
 
 		// create the new path of format <backupPath>/<year>/<month>/<day><hour><minute><second>_<filename>
 		imgTime := imgData.GetTimestamp()
-		destPath := generateEditedBackupDestinationPath(s.criteria.backupPath, imgData.GetFileName(), imgTime)
+		destPath := generateEditedBackupDestinationPath(s.criteria.BackupPath, imgData.GetFileName(), imgTime)
 
 		// check if the file with the new name already exists at the destination
 		exists, err := s.files.DoesFileExist(destPath)
@@ -234,28 +239,29 @@ func (s *Service) BackupEditedFiles() error {
 			continue
 		}
 
-		if s.criteria.copyFiles {
+		if s.criteria.CopyFiles {
 			// copy the file to the new location
 			err = s.files.CopyFile(file, destPath)
 			if err != nil {
 				return fmt.Errorf("failed to copy file [%s] to [%s]: %w", file, destPath, err)
 			}
-		} else if s.criteria.moveFiles {
+			s.stats.LocalEditedFilesCopied++
+		} else if s.criteria.MoveFiles {
 			// move the file to the new location
 			err = s.files.MoveFile(file, destPath)
 			if err != nil {
 				return fmt.Errorf("failed to move file [%s] to [%s]: %w", file, destPath, err)
 			}
+			s.stats.LocalEditedFilesMoved++
 		} else {
 			s.logger.Warn("No file operation specified (neither move nor copy)", zap.String("file", file))
 			continue
 		}
 
 		s.logger.Debug(logMsg, zap.String("file", file), zap.Bool("backed_up", true))
-		backupCount++
 	}
 
-	s.logger.Info("Backup of local edited files completed", zap.Int("file_count", backupCount))
+	s.logger.Info("Backup of local edited files completed", zap.Int("file_count", s.stats.LocalEditedFilesCopied+s.stats.LocalEditedFilesMoved))
 	return nil
 }
 
