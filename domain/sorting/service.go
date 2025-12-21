@@ -12,9 +12,10 @@ import (
 type SortCriteria struct {
 	fileTypes []string
 
-	rawPath    string
-	localPath  string
-	backupPath string
+	rawPath         string
+	localRawPath    string
+	localEditedPath string
+	backupPath      string
 
 	moveFiles bool
 	copyFiles bool
@@ -39,19 +40,20 @@ func NewService(
 	logging *zap.Logger,
 	fileTypes []string,
 	files fileManager,
-	rawPath, localPath, backupPath string,
+	rawPath, localRawPath, localEditedPath, backupPath string,
 	moveFiles, copyFiles bool,
 ) *Service {
 	return &Service{
 		logger: logging,
 		files:  files,
 		criteria: SortCriteria{
-			fileTypes:  fileTypes,
-			rawPath:    rawPath,
-			localPath:  localPath,
-			backupPath: backupPath,
-			moveFiles:  moveFiles,
-			copyFiles:  copyFiles,
+			fileTypes:       fileTypes,
+			rawPath:         rawPath,
+			localRawPath:    localRawPath,
+			localEditedPath: localEditedPath,
+			backupPath:      backupPath,
+			moveFiles:       moveFiles,
+			copyFiles:       copyFiles,
 		},
 	}
 }
@@ -97,7 +99,7 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 		}
 
 		// create the new path of format <localPath>/<year>-<month>-<day>/<filename>
-		destPath := generateRawImportDestinationPath(s.criteria.localPath, imgData.GetFileName(), imgTime)
+		destPath := generateRawImportDestinationPath(s.criteria.localRawPath, imgData.GetFileName(), imgTime)
 
 		// copy the file to the new location
 		err = s.files.CopyFile(file, destPath)
@@ -118,9 +120,9 @@ func (s *Service) ImportRawFiles(lastImportDate time.Time) (time.Time, error) {
 }
 
 func (s *Service) BackupLocalRawFiles() error {
-	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.rawPath)
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.localRawPath)
 	if err != nil {
-		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.rawPath, err)
+		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.localRawPath, err)
 	}
 	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
 
@@ -188,9 +190,9 @@ func (s *Service) BackupLocalRawFiles() error {
 }
 
 func (s *Service) BackupEditedFiles() error {
-	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.rawPath)
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.localEditedPath)
 	if err != nil {
-		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.rawPath, err)
+		return fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.localEditedPath, err)
 	}
 	s.logger.Info("Found files for import", zap.Int("file_count", len(files)))
 

@@ -16,9 +16,10 @@ type EnvConfig struct {
 type Config struct {
 	logLevel string
 
-	rawPath    string
-	localPath  string
-	backupPath string
+	rawPath         string
+	localRawPath    string
+	localEditedPath string
+	backupPath      string
 
 	copyFiles bool
 	moveFiles bool
@@ -30,7 +31,8 @@ type Config struct {
 }
 
 type pathConfig struct {
-	rawPath    string
-	localPath  string
-	backupPath string
+	rawPath         string
+	localRawPath    string
+	localEditedPath string
+	backupPath      string
 }

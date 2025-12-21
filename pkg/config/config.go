@@ -38,7 +38,8 @@ func GetConfig() (Config, error) {
 	}
 
 	cfg.rawPath = pathCfg.rawPath
-	cfg.localPath = pathCfg.localPath
+	cfg.localRawPath = pathCfg.localRawPath
+	cfg.localEditedPath = pathCfg.localEditedPath
 	cfg.backupPath = pathCfg.backupPath
 
 	return cfg, nil
@@ -48,15 +49,17 @@ func parsePathConfig(pathCfg string) (pathConfig, error) {
 	switch pathCfg {
 	case "test":
 		return pathConfig{
-			rawPath:    "/Users/downing/Pictures/testing/raw",
-			localPath:  "/Users/downing/Pictures/testing/rawsorted",
-			backupPath: "./media/backup",
+			rawPath:         "/Users/downing/Pictures/testing/raw",
+			localRawPath:    "/Users/downing/Pictures/testing/rawsorted",
+			localEditedPath: "/Users/downing/Pictures/testing/edited",
+			backupPath:      "/Users/downing/Pictures/testing/backup",
 		}, nil
 	case "default":
 		return pathConfig{
-			rawPath:    "/Volumes/EOS_DIGITAL/DCIM",
-			localPath:  "/Users/downing/Pictures/raw",
-			backupPath: "/",
+			rawPath:         "/Volumes/EOS_DIGITAL/DCIM",
+			localRawPath:    "/Users/downing/Pictures/raw",
+			localEditedPath: "/Users/downing/Pictures/edited",
+			backupPath:      "/",
 		}, nil
 	default:
 		return pathConfig{}, fmt.Errorf("unknown path config: %s, choose from [default]", pathCfg)
@@ -71,8 +74,12 @@ func (c Config) RawPath() string {
 	return c.rawPath
 }
 
-func (c Config) LocalPath() string {
-	return c.localPath
+func (c Config) LocalRawPath() string {
+	return c.localRawPath
+}
+
+func (c Config) LocalEditedPath() string {
+	return c.localEditedPath
 }
 
 func (c Config) BackupPath() string {
@@ -107,7 +114,8 @@ func (c Config) LogConfig(logger *zap.Logger) {
 	logger.Info("Config on startup",
 		zap.String("log_level", c.LogLevel()),
 		zap.String("raw_path", c.RawPath()),
-		zap.String("local_path", c.LocalPath()),
+		zap.String("local_raw_path", c.LocalRawPath()),
+		zap.String("local_edited_path", c.LocalEditedPath()),
 		zap.String("backup_path", c.BackupPath()),
 		zap.Bool("copy_files", c.CopyFiles()),
 		zap.Bool("move_files", c.MoveFiles()),
