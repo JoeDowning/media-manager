@@ -279,14 +279,14 @@ func generateRawImportDestinationPath(basePath, fileName string, timestamp time.
 }
 
 func generateRawBackupDestinationPath(basePath, fileName string, timestamp time.Time) string {
-	return fmt.Sprintf("%s/raw/%d/%02d/%02d/%02d%02d%02d_%s", basePath,
+	return fmt.Sprintf("%s/raw/year%d/month%02d/day%02d/%02d%02d%02d_%s", basePath,
 		timestamp.Year(), timestamp.Month(), timestamp.Day(),
 		timestamp.Hour(), timestamp.Minute(), timestamp.Second(),
 		fileName)
 }
 
 func generateEditedBackupDestinationPath(basePath, fileName string, timestamp time.Time) string {
-	return fmt.Sprintf("%s/edited/%d/%02d/%02d/%02d%02d%02d_%s", basePath,
+	return fmt.Sprintf("%s/edited/year%d/month%02d/day%02d/%02d%02d%02d_%s", basePath,
 		timestamp.Year(), timestamp.Month(), timestamp.Day(),
 		timestamp.Hour(), timestamp.Minute(), timestamp.Second(),
 		fileName)
