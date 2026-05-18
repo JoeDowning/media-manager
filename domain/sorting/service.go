@@ -38,10 +38,6 @@ type fileManager interface {
 	CopyFile(sourcePath, destinationPath string) error
 }
 
-type statsManager interface {
-	IncrementCounter(name string)
-}
-
 func NewService(
 	logging *zap.Logger,
 	files fileManager,
@@ -263,6 +259,31 @@ func (s *Service) BackupEditedFiles() error {
 
 	s.logger.Info("Backup of local edited files completed", zap.Int("file_count", s.stats.LocalEditedFilesCopied+s.stats.LocalEditedFilesMoved))
 	return nil
+}
+
+func (s *Service) ListEditedFilesToUpload() ([]string, error) {
+	files, err := s.files.GetFilesRecursivelyInPath(s.criteria.LocalEditedPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get files recursively in path [%s]: %w", s.criteria.LocalEditedPath, err)
+	}
+	s.logger.Info("Found files in edited path", zap.Int("file_count", len(files)))
+	s.stats.ToUploadFilesChecked += len(files)
+
+	imageTypes := images.GetImageTypes()
+
+	imageFiles := []string{}
+
+	for _, file := range files {
+		if !fileTypeIsInList(file, imageTypes) {
+			s.logger.Debug("Skipping non-image file", zap.String("file", file))
+			continue
+		}
+		imageFiles = append(imageFiles, file)
+	}
+	s.logger.Info("Filtered image files for import", zap.Int("image_file_count", len(imageFiles)))
+	s.stats.ToUploadFilesFound += len(imageFiles)
+
+	return imageFiles, nil
 }
 
 func fileTypeIsInList(filePath string, fileTypes []string) bool {
